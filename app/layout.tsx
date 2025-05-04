@@ -1,23 +1,20 @@
-import type React from "react";
-import { AuthProvider } from "@/components/providers/session-provider";
-import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: "Trip Planner",
-  description: "Plan trips and coordinate availability with friends and family",
-};
+  title: 'v0 App',
+  description: 'Created with v0',
+  generator: 'v0.dev',
+}
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode;
-}) {
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
     <html lang="en">
-      <body>
-        <AuthProvider>{children}</AuthProvider>
-      </body>
+      <body>{children}</body>
     </html>
-  );
+  )
 }

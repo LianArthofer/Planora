@@ -1,115 +1,52 @@
-"use client";
-import { searchCities } from "@/lib/api";
-import { useEffect, useState } from "react";
-import {
-  format,
-  addDays,
-  isSameDay,
-  isWithinInterval,
-  differenceInDays,
-} from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus, X, Check } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AddPersonForm } from "./add-person-form";
-import { TripPreferences } from "./trip-preferences";
-import { DateRangePicker } from "./date-range-picker";
-import { supabase } from "@/lib/supabaseClient";
-import { nanoid } from "nanoid";
-import { useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { type DateRange } from "react-day-picker";
+"use client"
 
-// Define types for flight data
-interface FlightInfo {
-  type: string;
-  airline: string;
-  airline_logo?: string;
-  price: number;
-  departure: {
-    airport: string;
-    time: string;
-    iata_code: string;
-  };
-  arrival: {
-    airport: string;
-    time: string;
-    iata_code: string;
-  };
-  duration_minutes: number;
-  duration_formatted: string;
-  flight_number: string;
-  aircraft: string;
-  departure_token: string;
-  carbon_emissions_kg: number;
-}
+import { useState } from "react"
+import { format, addDays, isSameDay, isWithinInterval, differenceInDays } from "date-fns"
+import { Calendar } from "@/components/ui/calendar"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Plus, X, Check } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AddPersonForm } from "./add-person-form"
+import { TripPreferences } from "./trip-preferences"
+import { DateRangePicker } from "./date-range-picker"
 
-interface CityData {
-  city_name: string;
-  city_iata: string;
-  flight_info: FlightInfo | null;
-  return_flight_info: FlightInfo | null;
-}
-
-interface ApiResponse {
-  cities: CityData[];
-}
 export type Person = {
-  id: string;
-  name: string;
-  unavailableDates: Date[];
-};
+  id: string
+  name: string
+  unavailableDates: Date[]
+}
 
 export type TripPreference = {
-  id: string;
-  label: string;
-  selected: boolean;
-};
+  id: string
+  label: string
+  selected: boolean
+}
 
 export function TripPlanner() {
-  const [tripName, setTripName] = useState("Summer Vacation");
-
-  const [inputValue, setInputValue] = useState("LGW");
-  const [departureAirport, setDepartureAirport] = useState("LGW");
-
-  // Load trip from share link
-  const params = useSearchParams();
-  const { data: session } = useSession();
-  const shareId = params.get("share");
-  const [initialized, setInitialized] = useState(false);
-  //
-  const [selectedRangeIndex, setSelectedRangeIndex] = useState<number | null>(
-    null
-  );
-  const [tripDuration, setTripDuration] = useState(7);
-  const [tripCost, setTripCost] = useState(1000);
+  const [tripName, setTripName] = useState("Summer Vacation")
+  const [tripDuration, setTripDuration] = useState(7)
+  const [tripCost, setTripCost] = useState(1000)
   const [dateRange, setDateRange] = useState<{
-    from: Date;
-    to: Date;
+    from: Date
+    to: Date
   }>({
     from: new Date(),
     to: addDays(new Date(), 60),
-  });
+  })
   const [people, setPeople] = useState<Person[]>([
-  ]);
-  const [selectedPerson, setSelectedPerson] = useState<string>("1");
+    {
+      id: "1",
+      name: "You",
+      unavailableDates: [],
+    },
+  ])
+  const [selectedPerson, setSelectedPerson] = useState<string>("1")
   const [preferences, setPreferences] = useState<TripPreference[]>([
     { id: "1", label: "Beach", selected: false },
     { id: "2", label: "City", selected: false },
@@ -117,224 +54,97 @@ export function TripPlanner() {
     { id: "4", label: "Sun", selected: false },
     { id: "5", label: "Activity", selected: false },
     { id: "6", label: "Sights", selected: false },
-  ]);
-  const [aiResponse, setAiResponse] = useState<ApiResponse | null>(null);
+  ])
 
   const handleAddPerson = (name: string) => {
     const newPerson = {
       id: Date.now().toString(),
       name,
       unavailableDates: [],
-    };
-    setPeople([...people, newPerson]);
-    setSelectedPerson(newPerson.id);
-  };
-
-  useEffect(() => {
-    if (!shareId || initialized) return;
-
-    (async () => {
-      const { data, error } = await supabase
-        .from("trips")
-        .select("payload")
-        .eq("share_id", shareId)
-        .single();
-
-      if (error || !data) {
-        console.warn("No shared trip found:", error);
-      } else {
-        console.log("Shared trip found:", data);
-        const p = data.payload;
-        // parse ISO strings back into Date
-        p.dateRange.from = new Date(p.dateRange.from);
-        p.dateRange.to = new Date(p.dateRange.to);
-        p.people = p.people.map((person: any) => ({
-          ...person,
-          unavailableDates: person.unavailableDates.map(
-            (s: string) => new Date(s)
-          ),
-        }));
-
-        // hydrate state
-        setDateRange(p.dateRange);
-        setTripDuration(p.tripDuration);
-        setTripCost(p.tripCost);
-        setInputValue(p.departureAirport);
-        setDepartureAirport(p.departureAirport);
-        setPeople(p.people);
-        setPreferences(p.preferences);
-      }
-
-      setInitialized(true);
-    })();
-  }, [shareId, initialized]);
-
-  async function handleSave() {
-    if (!session) {
-      alert("You must be signed in to save a trip.");
-      return;
     }
-
-    const userId = session.user?.id;
-    const shareId = nanoid(8);
-
-    const payload = {
-      dateRange,
-      tripDuration,
-      tripCost,
-      departureAirport: inputValue,
-      people: people.map((p) => ({
-        ...p,
-        unavailableDates: p.unavailableDates.map((d) => d.toISOString()),
-      })),
-      preferences,
-    };
-
-    const { error } = await supabase
-      .from("trips")
-      .upsert(
-        { share_id: shareId, user_id: userId, payload },
-        { onConflict: "share_id" }
-      );
-
-    if (error) {
-      console.error("Error saving trip:", error);
-      return;
-    }
-
-    const url = `${window.location.origin}/trip-planner?share=${shareId}`;
-    navigator.clipboard.writeText(url);
-    alert("Shareable link copied!");
+    setPeople([...people, newPerson])
+    setSelectedPerson(newPerson.id)
   }
 
   const handleRemovePerson = (id: string) => {
-    setPeople(people.filter((person) => person.id !== id));
+    setPeople(people.filter((person) => person.id !== id))
     if (selectedPerson === id) {
-      setSelectedPerson(people[0].id);
+      setSelectedPerson(people[0].id)
     }
-  };
+  }
 
-  const normalizeDate = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const handleDateClick = (date: Date) => {
+    const personIndex = people.findIndex((p) => p.id === selectedPerson)
+    if (personIndex === -1) return
 
-  const handleDateRangeChange = (range: DateRange) => {
-    if (range.from && range.to) {
-      setDateRange({ from: range.from, to: range.to });
-    }
-  };
+    const person = people[personIndex]
+    const isUnavailable = person.unavailableDates.some((d) => isSameDay(d, date))
 
-  const handleDateClick = (date: Date | undefined) => {
-    if (!date) return;
-
-    const normalizedDate = normalizeDate(date);
-    console.log("Normalized date:", normalizedDate);
-    const personIndex = people.findIndex((p) => p.id === selectedPerson);
-    if (personIndex === -1) return;
-
-    const person = people[personIndex];
-    const isUnavailable = person.unavailableDates.some((d) =>
-      isSameDay(d, normalizedDate)
-    );
-
-    const updatedPeople = [...people];
+    const updatedPeople = [...people]
     if (isUnavailable) {
       updatedPeople[personIndex] = {
         ...person,
-        unavailableDates: person.unavailableDates.filter(
-          (d) => !isSameDay(d, normalizedDate)
-        ),
-      };
+        unavailableDates: person.unavailableDates.filter((d) => !isSameDay(d, date)),
+      }
     } else {
       updatedPeople[personIndex] = {
         ...person,
-        unavailableDates: [...person.unavailableDates, normalizedDate],
-      };
+        unavailableDates: [...person.unavailableDates, date],
+      }
     }
-    setPeople(updatedPeople);
-  };
-
-  const handleSelect = async (index: number) => {
-    setSelectedRangeIndex(index);
-
-    const range = availableDateRanges[index];
-
-    // Get all selected preferences (tags)
-    const selectedTags = preferences
-      .filter((p) => p.selected)
-      .map((p) => p.label);
-
-    try {
-      const searchParams = {
-        tags: selectedTags,
-        costPerPerson: tripCost,
-        startDate: format(range.start, "yyyy-MM-dd"),
-        endDate: format(range.end, "yyyy-MM-dd"),
-        departureAirport: departureAirport,
-      };
-      console.log("Sending search params:", searchParams);
-      const response = await searchCities(searchParams);
-      console.log("Raw API response:", JSON.stringify(response, null, 2));
-      setAiResponse(response);
-    } catch (err) {
-      console.error("API call failed:", err);
-    }
-  };
+    setPeople(updatedPeople)
+  }
 
   const isDateUnavailable = (date: Date) => {
-    const today = normalizeDate(date);
-    return people.some((p) =>
-      p.unavailableDates.some((d) => isSameDay(normalizeDate(d), today))
-    );
-  };
+    const person = people.find((p) => p.id === selectedPerson)
+    return person?.unavailableDates.some((d) => isSameDay(d, date)) || false
+  }
 
-  function findAvailableDates() {
-    if (!dateRange.from || !dateRange.to) return [];
+  const findAvailableDates = () => {
+    // Check if dateRange or its properties are undefined
+    if (!dateRange || !dateRange.from || !dateRange.to) return []
 
-    // total full days inclusive of both endpoints:
-    const totalDays = differenceInDays(dateRange.to, dateRange.from) + 1;
-    const maxStartOffset = totalDays - tripDuration;
-    if (maxStartOffset < 0) return [];
+    const availableDates = []
+    const totalDays = differenceInDays(dateRange.to, dateRange.from)
 
-    const availableDates: { start: Date; end: Date }[] = [];
+    for (let i = 0; i <= totalDays - tripDuration; i++) {
+      const startDate = addDays(dateRange.from, i)
+      const endDate = addDays(startDate, tripDuration - 1)
 
-    for (let offset = 0; offset <= maxStartOffset; offset++) {
-      const startDate = normalizeDate(addDays(dateRange.from, offset));
-      const endDate = normalizeDate(addDays(startDate, tripDuration - 1));
+      let isAvailable = true
 
-      // reset for each candidate range
-      let isAvailable = true;
-
-      // check every person against every day in the window
+      // Check if all people are available for the entire duration
       for (const person of people) {
-        for (let day = 0; day < tripDuration; day++) {
-          const current = normalizeDate(addDays(startDate, day));
-          if (person.unavailableDates.some((d) => isSameDay(d, current))) {
-            console.log("Person is unavailable on:", current);
-            isAvailable = false;
-            break; // stop checking this person
+        for (let j = 0; j < tripDuration; j++) {
+          const currentDate = addDays(startDate, j)
+          if (person.unavailableDates.some((d) => isSameDay(d, currentDate))) {
+            isAvailable = false
+            break
           }
         }
-        if (!isAvailable) break; // stop checking other people
+        if (!isAvailable) break
       }
 
       if (isAvailable) {
-        availableDates.push({ start: startDate, end: endDate });
+        availableDates.push({
+          start: startDate,
+          end: endDate,
+        })
       }
     }
 
-    return availableDates;
+    return availableDates
   }
 
-  const availableDateRanges = findAvailableDates();
+  const availableDateRanges = findAvailableDates()
 
   const isDateInAvailableRange = (date: Date) => {
-    const today = normalizeDate(date);
-    return availableDateRanges.some((range) => {
-      const start = normalizeDate(range.start);
-      const end = normalizeDate(range.end);
-      return isWithinInterval(today, { start, end });
-    });
-  };
+    if (!availableDateRanges || availableDateRanges.length === 0) return false
+    return availableDateRanges.some(
+      (range) => range && range.start && range.end && isWithinInterval(date, { start: range.start, end: range.end }),
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       <Card className="mb-6">
@@ -348,38 +158,7 @@ export function TripPlanner() {
                   className="text-2xl font-bold border-none p-0 h-auto focus-visible:ring-0"
                 />
               </CardTitle>
-              <CardDescription>
-                Plan your trip with friends and family
-              </CardDescription>
-            </div>
-            <div>
-              <Label htmlFor="departure">Departure Airport (IATA)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="departure"
-                  maxLength={3}
-                  className="w-24 uppercase"
-                  placeholder="LGW"
-                  value={inputValue}
-                  onChange={(e) => {
-                    const value = e.target.value.toUpperCase();
-                    setInputValue(value);
-                  }}
-                />
-                <Button
-                  onClick={() => {
-                    setDepartureAirport(inputValue);
-                    console.log("Departure airport set to:", inputValue);
-                  }}
-                >
-                  OK
-                </Button>
-              </div>
-            </div>
-            <div className="mt-4">
-              <Button variant="secondary" onClick={handleSave}>
-                Save This Trip
-              </Button>
+              <CardDescription>Plan your trip with friends and family</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <div>
@@ -389,9 +168,7 @@ export function TripPlanner() {
                   type="number"
                   min={1}
                   value={tripDuration}
-                  onChange={(e) =>
-                    setTripDuration(Number.parseInt(e.target.value) || 1)
-                  }
+                  onChange={(e) => setTripDuration(Number.parseInt(e.target.value) || 1)}
                   className="w-24"
                 />
               </div>
@@ -402,9 +179,7 @@ export function TripPlanner() {
                   type="number"
                   min={0}
                   value={tripCost}
-                  onChange={(e) =>
-                    setTripCost(Number.parseInt(e.target.value) || 0)
-                  }
+                  onChange={(e) => setTripCost(Number.parseInt(e.target.value) || 0)}
                   className="w-24"
                 />
               </div>
@@ -418,22 +193,15 @@ export function TripPlanner() {
           <Card>
             <CardHeader>
               <CardTitle>Trip Calendar</CardTitle>
-              <CardDescription>
-                Select a date range for your trip and mark your unavailable days
-              </CardDescription>
-              <DateRangePicker
-                dateRange={dateRange}
-                onDateRangeChange={handleDateRangeChange}
-              />
+              <CardDescription>Select a date range for your trip and mark your unavailable days</CardDescription>
+              <DateRangePicker dateRange={dateRange} onDateRangeChange={setDateRange} />
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2 mb-4">
                 {people.map((person) => (
                   <Badge
                     key={person.id}
-                    variant={
-                      selectedPerson === person.id ? "default" : "outline"
-                    }
+                    variant={selectedPerson === person.id ? "default" : "outline"}
                     className="cursor-pointer flex items-center gap-1"
                     onClick={() => setSelectedPerson(person.id)}
                   >
@@ -442,8 +210,8 @@ export function TripPlanner() {
                       <X
                         className="h-3 w-3 ml-1"
                         onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemovePerson(person.id);
+                          e.stopPropagation()
+                          handleRemovePerson(person.id)
                         }}
                       />
                     )}
@@ -475,10 +243,11 @@ export function TripPlanner() {
 
               <Calendar
                 mode="single"
-                onSelect={(date) => date && handleDateClick(date)}
-                disabled={(date) =>
-                  date < dateRange.from || date > dateRange.to
-                }
+                onSelect={handleDateClick}
+                disabled={(date) => {
+                  if (!dateRange || !dateRange.from || !dateRange.to) return true
+                  return date < dateRange.from || date > dateRange.to
+                }}
                 modifiers={{
                   unavailable: (date) => isDateUnavailable(date),
                   available: (date) => isDateInAvailableRange(date),
@@ -503,41 +272,23 @@ export function TripPlanner() {
               <Card>
                 <CardHeader>
                   <CardTitle>Available Dates</CardTitle>
-                  <CardDescription>
-                    Dates when everyone is available for {tripDuration} days
-                  </CardDescription>
+                  <CardDescription>Dates when everyone is available for {tripDuration} days</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-[400px]">
                     {availableDateRanges.length > 0 ? (
                       <div className="space-y-2">
                         {availableDateRanges.map((range, index) => (
-                          <div
-                            key={index}
-                            className="p-3 border rounded-md flex items-center justify-between"
-                          >
+                          <div key={index} className="p-3 border rounded-md flex items-center justify-between">
                             <div>
                               <div className="font-medium">
-                                {format(range.start, "MMM d, yyyy")} -{" "}
-                                {format(range.end, "MMM d, yyyy")}
+                                {format(range.start, "MMM d, yyyy")} - {format(range.end, "MMM d, yyyy")}
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                {tripDuration} days
-                              </div>
+                              <div className="text-sm text-muted-foreground">{tripDuration} days</div>
                             </div>
-                            <Button
-                              variant={
-                                selectedRangeIndex === index
-                                  ? "default"
-                                  : "outline"
-                              }
-                              size="sm"
-                              onClick={() => handleSelect(index)}
-                            >
+                            <Button variant="outline" size="sm">
                               <Check className="h-4 w-4 mr-1" />
-                              {selectedRangeIndex === index
-                                ? "Selected"
-                                : "Select"}
+                              Select
                             </Button>
                           </div>
                         ))}
@@ -557,168 +308,16 @@ export function TripPlanner() {
               <Card>
                 <CardHeader>
                   <CardTitle>Trip Preferences</CardTitle>
-                  <CardDescription>
-                    What are you looking for in this trip?
-                  </CardDescription>
+                  <CardDescription>What are you looking for in this trip?</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <TripPreferences
-                    preferences={preferences}
-                    setPreferences={setPreferences}
-                  />
+                  <TripPreferences preferences={preferences} setPreferences={setPreferences} />
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </div>
       </div>
-      {aiResponse && aiResponse.cities && aiResponse.cities.length > 0 ? (
-        <div className="mt-4 p-4 bg-gray-100 border rounded-md">
-          <h2 className="text-xl font-semibold mb-3">Suggested Cities</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
-            {aiResponse.cities.map((cityData: CityData, index: number) => (
-              <div
-                key={index}
-                className="p-4 border rounded-lg shadow-sm bg-white hover:shadow-md transition"
-              >
-                <h3 className="text-lg font-semibold capitalize">
-                  {cityData.city_name}
-                </h3>
-                <div className="mt-2">
-                  <p className="text-gray-500">
-                    Airport:{" "}
-                    <span className="font-mono">{cityData.city_iata}</span>
-                  </p>
-
-                  {/* Flight Information */}
-                  {cityData.flight_info ? (
-                    <div className="mt-3 pt-2 border-t">
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium">Total Price</h4>
-                        <span className="text-lg font-bold">
-                          £
-                          {(
-                            Number(cityData.flight_info?.price || 0) +
-                            Number(cityData.return_flight_info?.price || 0)
-                          ).toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Outbound Flight */}
-                      <div className="mt-3 p-2 bg-gray-50 rounded-md">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            {cityData.flight_info?.airline_logo && (
-                              <img
-                                src={cityData.flight_info.airline_logo}
-                                alt={cityData.flight_info?.airline}
-                                className="h-6 w-6 object-contain"
-                              />
-                            )}
-                            <span className="font-medium">Outbound</span>
-                          </div>
-                          <span className="font-semibold">
-                            £{cityData.flight_info?.price}
-                          </span>
-                        </div>
-                        <div className="text-sm mt-1">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">
-                              Flight:{" "}
-                              <span className="font-mono">
-                                {cityData.flight_info?.flight_number || "N/A"}
-                              </span>
-                            </span>
-                            <span className="text-gray-600">
-                              {cityData.flight_info?.airline}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-gray-600 mt-1">
-                            <span>
-                              {cityData.flight_info?.departure?.time} →{" "}
-                              {cityData.flight_info?.arrival?.time}
-                            </span>
-                            <span>
-                              {cityData.flight_info?.duration_formatted}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Return Flight */}
-                      {cityData.return_flight_info ? (
-                        <div className="mt-2 p-2 bg-gray-50 rounded-md">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              {cityData.return_flight_info?.airline_logo && (
-                                <img
-                                  src={cityData.return_flight_info.airline_logo}
-                                  alt={cityData.return_flight_info?.airline}
-                                  className="h-6 w-6 object-contain"
-                                />
-                              )}
-                              <span className="font-medium">Return</span>
-                            </div>
-                            <span className="font-semibold">
-                              £{cityData.return_flight_info?.price}
-                            </span>
-                          </div>
-                          <div className="text-sm mt-1">
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">
-                                Flight:{" "}
-                                <span className="font-mono">
-                                  {cityData.return_flight_info?.flight_number ||
-                                    "N/A"}
-                                </span>
-                              </span>
-                              <span className="text-gray-600">
-                                {cityData.return_flight_info?.airline}
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-gray-600 mt-1">
-                              <span>
-                                {cityData.return_flight_info?.departure?.time} →{" "}
-                                {cityData.return_flight_info?.arrival?.time}
-                              </span>
-                              <span>
-                                {
-                                  cityData.return_flight_info
-                                    ?.duration_formatted
-                                }
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-2 p-2 bg-amber-50 rounded-md">
-                          <div className="text-amber-700 text-sm">
-                            Return flight information not available
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-3 p-3 bg-amber-50 text-amber-700 rounded-md text-sm">
-                      No flights available for this destination
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : aiResponse ? (
-        <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-          <h2 className="text-xl font-semibold mb-2 text-yellow-800">
-            Loading Results
-          </h2>
-          <p className="text-yellow-700">
-            We&apos;re finding flight options for your selected dates. This may
-            take a moment...
-          </p>
-        </div>
-      ) : null}
     </div>
-  );
+  )
 }
