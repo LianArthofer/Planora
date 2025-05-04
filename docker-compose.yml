@@ -1,15 +1,29 @@
 version: "3"
 
 services:
-  app:
+  frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+
     ports:
       - "3000:3000"
+    depends_on:
+      - backend
     environment:
       - NODE_ENV=production
+      - BACKEND_URL=http://localhost:8000
     restart: always
-    # Add volumes if you need to persist data
+
+  backend:
+    build:
+      context: ./backend
+
+    ports:
+      - "8000:8000"
+    # Add any environment variables your backend needs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always
+    # Add volumes if needed
     # volumes:
-    #   - ./data:/app/data
+    #   - ./backend/data:/app/data
