@@ -43,8 +43,7 @@ import { nanoid } from "nanoid";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { type DateRange } from "react-day-picker";
-import { PersonPayload } from "@/types/person-payload";
-
+import { PersonPayload } from "../types/person-payload";
 
 // Define types for flight data
 interface FlightInfo {
@@ -205,12 +204,14 @@ export function TripPlanner() {
           updatedData.dateRange.to = new Date(updatedData.dateRange.to);
 
           // Process people data to convert string dates to Date objects
-          const updatedPeople = updatedData.people.map((person: PersonPayload) => ({
-            ...person,
-            unavailableDates: person.unavailableDates.map(
-              (s: string) => new Date(s)
-            ),
-          }));
+          const updatedPeople = updatedData.people.map(
+            (person: PersonPayload) => ({
+              ...person,
+              unavailableDates: person.unavailableDates.map(
+                (s: string) => new Date(s)
+              ),
+            })
+          );
 
           console.log("Updating local state with new data:", updatedData);
 
