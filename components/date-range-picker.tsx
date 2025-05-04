@@ -50,12 +50,15 @@ export function DateRangePicker({
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
-            initialFocus
+            initialFocus={true}
             mode="range"
             defaultMonth={dateRange?.from}
             selected={dateRange}
-            onSelect={onDateRangeChange}
+            onSelect={(selected: DateRange | undefined) =>
+              selected && onDateRangeChange(selected)
+            }
             numberOfMonths={2}
+            required={false}
           />
         </PopoverContent>
       </Popover>

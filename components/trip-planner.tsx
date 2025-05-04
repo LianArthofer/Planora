@@ -35,7 +35,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { nanoid } from "nanoid";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { type DateRange } from "react-day-picker";
+//import { type DateRange } from "react-day-picker";
 
 // Define types for flight data
 interface FlightInfo {
@@ -107,8 +107,7 @@ export function TripPlanner() {
     from: new Date(),
     to: addDays(new Date(), 60),
   });
-  const [people, setPeople] = useState<Person[]>([
-  ]);
+  const [people, setPeople] = useState<Person[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<string>("1");
   const [preferences, setPreferences] = useState<TripPreference[]>([
     { id: "1", label: "Beach", selected: false },
@@ -148,10 +147,10 @@ export function TripPlanner() {
         // parse ISO strings back into Date
         p.dateRange.from = new Date(p.dateRange.from);
         p.dateRange.to = new Date(p.dateRange.to);
-        p.people = p.people.map((person: any) => ({
+        p.people = p.people.map((person: Person) => ({
           ...person,
           unavailableDates: person.unavailableDates.map(
-            (s: string) => new Date(s)
+            (d: Date) => new Date(d.toISOString())
           ),
         }));
 
@@ -174,40 +173,40 @@ export function TripPlanner() {
     if (!shareId) return;
 
     console.log("Setting up realtime subscription for trip:", shareId);
-    
+
     // Create a subscription channel
     const channel = supabase
       .channel(`public:trips:share_id=eq.${shareId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'trips',
-          filter: `share_id=eq.${shareId}`
+          event: "UPDATE",
+          schema: "public",
+          table: "trips",
+          filter: `share_id=eq.${shareId}`,
         },
         (payload) => {
-          console.log('Real-time update received:', payload);
-          
+          console.log("Real-time update received:", payload);
+
           // Extract the updated payload data
           const updatedData = payload.new.payload;
-          
+
           if (!updatedData) return;
-          
+
           // Parse ISO strings back into Date objects
           updatedData.dateRange.from = new Date(updatedData.dateRange.from);
           updatedData.dateRange.to = new Date(updatedData.dateRange.to);
-          
+
           // Process people data to convert string dates to Date objects
-          const updatedPeople = updatedData.people.map((person: any) => ({
+          const updatedPeople = updatedData.people.map((person: Person) => ({
             ...person,
             unavailableDates: person.unavailableDates.map(
-              (s: string) => new Date(s)
+              (d: Date) => new Date(d.toISOString())
             ),
           }));
-          
+
           console.log("Updating local state with new data:", updatedData);
-          
+
           // Update all the relevant state
           if (updatedData.tripName) setTripName(updatedData.tripName);
           setDateRange(updatedData.dateRange);
@@ -220,7 +219,7 @@ export function TripPlanner() {
         }
       )
       .subscribe();
-    
+
     // Clean up the subscription when the component unmounts
     return () => {
       console.log("Cleaning up realtime subscription");
@@ -263,7 +262,7 @@ export function TripPlanner() {
     }
 
     const url = `${window.location.origin}/trip-planner?share=${tripShareId}`;
-    
+
     // Only redirect if this is a new trip (not editing an existing one)
     if (!shareId) {
       navigator.clipboard.writeText(url);
@@ -286,19 +285,19 @@ export function TripPlanner() {
   const normalizeDate = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-  const handleDateRangeChange = (range: DateRange) => {
-    if (range.from && range.to) {
-      setDateRange({ from: range.from, to: range.to });
-    } else if (range.from) {
-      // If only the start date is selected, update just the from date
-      // while preserving the existing to date
-      setDateRange((prev) => ({ ...prev, from: range.from }));
-    } else if (range.to) {
-      // If only the end date is selected, update just the to date
-      // while preserving the existing from date
-      setDateRange((prev) => ({ ...prev, to: range.to }));
-    }
-  };
+  //const handleDateRangeChange = (range: DateRange) => {
+  //if (range.from && range.to) {
+  //setDateRange({ from: range.from, to: range.to });
+  //} else if (range.from) {
+  // If only the start date is selected, update just the from date
+  // while preserving the existing to date
+  //setDateRange((prev) => ({ ...prev, from: range.from }));
+  //} else if (range.to) {
+  // If only the end date is selected, update just the to date
+  // while preserving the existing from date
+  //setDateRange((prev) => ({ ...prev, to: range.to }));
+  //}
+  //};
 
   const handleDateClick = (date: Date | undefined) => {
     if (!date) return;

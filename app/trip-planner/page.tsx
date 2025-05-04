@@ -2,11 +2,11 @@
 
 import { Navbar } from "@/components/navbar";
 import { TripPlanner } from "@/components/trip-planner";
-import { useSearchParams } from "next/navigation";
+//import { useSearchParams } from "next/navigation";
 
 export default function TripPlannerPage() {
-  const searchParams = useSearchParams();
-  const shareId = searchParams.get("share");
+  //const searchParams = useSearchParams();
+  //const shareId = searchParams.get("share");
 
   return (
     <>
